@@ -238,8 +238,8 @@ class Tilemap:
                             if node.pos == unit.pos:
                                 game.right_click = False
                             elif node.occupants == None:
-                                unit.move(self, vec(unit.rect.x // self.tilesize,
-                                                    (unit.rect.y // self.tilesize)))
+                                unit.update(self, vec(unit.rect.x // self.tilesize,
+                                                      (unit.rect.y // self.tilesize)))
                                 # update the starting node and make the new one starting
                                 from_node.occupants = None
                                 node.occupants = unit

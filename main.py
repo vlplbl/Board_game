@@ -1,8 +1,8 @@
 '''This module controls the main game mechanics and game flow'''
+import pygame as pg
 from tilemap import *
 from settings import *
 from pygame import *
-import pygame as pg
 from os import *
 import random
 chdir('C:\\Users\\Vladimir\\Desktop\\Projects\\')
