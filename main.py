@@ -5,7 +5,7 @@ from settings import *
 from pygame import *
 from os import *
 import random
-chdir('C:\\Users\\Vladimir\\Desktop\\Projects\\')
+chdir('C:\\Users\\Vladimir\\Desktop\\Projects\\Civ_Boardgame')
 
 
 class Game:
