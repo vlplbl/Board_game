@@ -87,17 +87,19 @@ class Tilemap:
         }
         self.players = {
             "player1":
-            {"units": [Swordsman(self, vec(10, 7), 'player1'), Axeman(self, vec(11, 7), 'player1')],
-             "buildings": [MainBase(self, vec(12, 7), 'player1')]},
+            {"units": [Warrior(self, vec(10, 7), 'player1'), Axeman(self, vec(11, 7), 'player1')],   # Horseman(self, vec(12, 7), 'player1')],
+             "buildings": [self.place_main_base('player1', 'NW')],
+             "resources": {
+                 "money": 0,
+                 "crystals": 0}
+             },
             "player2":
-            {"units": [Swordsman(self, vec(i, 4), 'player2')
-                       for i in range(10, 14)],
-             "buildings": [MainBase(self, vec(12, 4), 'player2')]}
-            # }
-            # self.teams = {
-            #     'team1': self.players['player1'],
-            #     'team2': self.players['player2']
-            # }
+            {"units": [Warrior(self, vec(10, 4), 'player2')],  # for i in range(10, 14)],
+             "buildings": [self.place_main_base('player2', 'SE')],
+             "resources": {
+                 "money": 0,
+                 "crystals": 0}
+             }
         }
         self.teams = {
             'player1': 'team1',
@@ -106,6 +108,8 @@ class Tilemap:
         self.players_list = [key for key in self.players.keys()]
         self.current_player = "player1"
         self.pos = (0, 0)
+        # self.players['player1']['buildings'].append(
+        #     Baracks(self, vec(10, 8), 'player1'))
         self.generate_terrain()
         self.nodes = [[Node(self, [j*self.tilesize + self.offset[0], i*self.tilesize + self.offset[1]],
                             random.choice(self.terrain_list)) for i in range(BOARDHEIGHT)] for j in range(BOARDWIDTH)]
@@ -127,16 +131,20 @@ class Tilemap:
         self.target_tile = vec(0, 0)
         self.target_pos = vec(0, 0)
         self.last_time = 0
-        self.from_node = None
 
-    def assign_objects_to_map(self):
-        # map each unit to it's tile
-        for i, col in enumerate(self.nodes):
-            for j, node in enumerate(col):
-                for player in self.players:
-                    for unit in self.players[player]['units']:
-                        if node.pos == unit.pos:
-                            node.occupants = unit
+    def place_main_base(self, player, quadrant='NW'):
+        '''quadrant = NW, SE, SW, NE'''
+        quadrants = {
+            'NW': (random.randint(1, BOARDWIDTH//5), random.randint(1, BOARDHEIGHT//5)),
+            'SE': (random.randint(BOARDWIDTH*4//5, BOARDWIDTH-4),
+                   random.randint(BOARDHEIGHT*4//5, BOARDHEIGHT-4)),
+            'SW': (random.randint(1, BOARDWIDTH//5),
+                   random.randint(BOARDHEIGHT*4//5, BOARDHEIGHT-4)),
+            'NE': (random.randint(BOARDWIDTH*4//5, BOARDWIDTH-4), random.randint(1, BOARDHEIGHT//5))}
+        # base = [MainBase(self, vec(j, i), player) for i in range(quadrants[quadrant][1], quadrants[quadrant][1]+3)
+        #         for j in range(quadrants[quadrant][0], quadrants[quadrant][0]+3)]
+        base = MainBase(self, vec(quadrants[quadrant]), player)
+        return base
 
     def generate_terrain(self):
         # make random weighed terrain nodes by the terrain type frequency from the terrain dict
@@ -190,6 +198,8 @@ class Tilemap:
             unit.moved = False
             unit.image = unit.active_image
             unit.selected = False
+        for building in self.players[self.current_player]["buildings"]:
+            self.game.camera.apply_camera(self, building.pos)
 
     def get_mouse_pos(self):
         mx, my = pg.mouse.get_pos()
@@ -209,20 +219,19 @@ class Tilemap:
                     for unit in self.players[player]['units']:
                         if node.pos == unit.pos:
                             node.occupants = unit
-                # for building in self.players[player]['buildings']:
-                #     if node.pos == building.pos:
-                #         node.pos == building.pos
+                    for building in self.players[player]['buildings']:
+                        if node.pos == building.pos:
+                            node.occupants = building
                 if node.pos == self.get_mouse_pos():
                     if game.clicked:
                         # deselect all other selections
-                        for all_units in self.players[self.current_player]["units"]:
-                            all_units.selected = False
-                        for all_buildings in self.players[self.current_player]['buildings']:
-                            all_buildings.selected = False
+                        for unit in self.players[self.current_player]["units"]:
+                            unit.selected = False
+                        for building in self.players[self.current_player]['buildings']:
+                            building.selected = False
                         # select a unit with left click
                         if node.occupants != None:
                             node.occupants.selected = True
-                            # self.from_node = node
                         game.clicked = False
                         game.right_click = False
 
@@ -238,13 +247,9 @@ class Tilemap:
                             if node.pos == unit.pos:
                                 game.right_click = False
                             elif node.occupants == None:
-                                unit.update(self, vec(unit.rect.x // self.tilesize,
-                                                      (unit.rect.y // self.tilesize)))
+                                unit.move(self, unit.pos, self.get_mouse_pos())
                                 # update the starting node and make the new one starting
                                 from_node.occupants = None
-                                node.occupants = unit
-                                # self.from_node.occupants = None
-                                # self.from_node = node
                                 game.right_click = False
                         # attack
                         if game.right_click and unit.selected and node.occupants != None:
@@ -254,29 +259,38 @@ class Tilemap:
                             target_class = node.occupants._class
                             if unit_team != target_team:
                                 if unit.selected and unit.current_AP > 0:
+                                    if unit.distance_between(unit.pos, self.get_mouse_pos()) > 1:
+                                        print('move and attack')
+                                        unit.move(self, unit.pos,
+                                                  self.get_mouse_pos())
+                                        game.right_click = False
                                     print('attacking')
                                     unit.attacking('slash', node.occupants)
+                                    print(node.occupants.current_HP)
                                     game.right_click = False
-                                    if unit.current_AP <= 0:
-                                        unit.turn_inactive()
                                     if node.occupants.current_HP <= 0:
                                         index = self.players[target_player][target_class].index(
                                             node.occupants)
-                                        del self.players[target_player][target_class][index]
+                                        if unit.current_MP >= self.nodes[int(node.occupants.pos.x)][int(node.occupants.pos.y)].entering_cost:
+                                            print('moving after kill')
+                                            unit.move(self, unit.pos,
+                                                      self.get_mouse_pos())
+                                        if unit.current_AP <= 0:
+                                            unit.turn_inactive()
                                         unit.kill_count += 1
                                         unit.exp += node.occupants.exp_reward
+                                        del self.players[target_player][target_class][index]
                                         node.occupants = None
+                                    game.right_click = False
                             # switch position with a friendly unit
                             else:
-                                last_pos = from_node.rect
-                                target_rect = node.rect
-                                if unit.is_valid_pos(self, vec2int(node.pos)) and node.occupants.is_valid_pos(self, vec2int(self.from_node.pos)):
-                                    unit.update(self, vec((target_rect.x - self.offset[0]) // self.tilesize,
-                                                          (target_rect.y - self.offset[1]) // self.tilesize))
-                                    node.occupants.update(self, vec((last_pos.x - self.offset[0]) // self.tilesize,
-                                                                    (last_pos.y - self.offset[1]) // self.tilesize))
-                                    from_node = node
-                                    from_node.occupants = node.occupants
+                                if unit.current_MP >= node.entering_cost and node.occupants.current_MP >= from_node.entering_cost:
+                                    print('switching positions')
+                                    unit.move(self, unit.pos,
+                                              node.pos)
+                                    node.occupants.pos = from_node.pos
+                                    node.occupants.rect = node.occupants.pos * TILESIZE
+                                    node.occupants.current_MP -= from_node.entering_cost
                                     game.right_click = False
                                 game.right_click = False
 
@@ -293,7 +307,6 @@ class Tilemap:
 
     def draw_tilemap(self, game, screen):
         '''build a map with number of tiles and TILESIZE'''
-        now = pg.time.get_ticks()
         self.board_image.draw(screen)
         # draw a grid
         for i in range(BOARDHEIGHT):
@@ -313,7 +326,7 @@ class Tilemap:
             if unit.selected and self.get_mouse_pos() != unit.pos:
                 self.path = a_star_search(
                     self, self.get_mouse_pos(), unit.pos)
-                self.draw_path(screen, self.get_mouse_pos(), unit.pos)
+                self.draw_path(screen, unit, self.get_mouse_pos())
         if game.show_path:
             self.draw_explored_tiles(screen)
         # draw tooltips
@@ -326,8 +339,8 @@ class Tilemap:
         if pg.mouse.get_rel() != (0, 0) or click[0]:
             self.last_time = now + TOOLTIP_DELAY
         if game.tooltips:
-            for i, col in enumerate(self.nodes):
-                for j, node in enumerate(col):
+            for col in self.nodes:
+                for node in col:
                     if self.get_mouse_pos() == node.pos and now > self.last_time:
                         if node.occupants != None:
                             pg.draw.rect(
@@ -352,13 +365,21 @@ class Tilemap:
                             draw_text(screen, "Current HP: " + str(node.occupants.current_HP),
                                       game.hud_font, 15, WHITE, mx+20, my + 108, background_color=BLACK)
 
-    def draw_path(self, screen, target_pos, start_pos):
+    def draw_path(self, screen, unit, target_pos):
         # draw the shortest path
-        current = start_pos + self.path[vec2int(start_pos)]
+        current = unit.pos + self.path[vec2int(unit.pos)]
+        cost = self.nodes[int(current.x)][int(current.y)].entering_cost
         while current != target_pos:
-            pg.draw.circle(screen, RED, (int(current.x * 64 + 32 + self.offset[0]),
-                                         int(current.y * 64 + 32 + self.offset[1])), 10)
-            current = current + self.path[vec2int(current)]
+            if cost <= unit.current_MP:
+                pg.draw.circle(screen, BLUE, (int(current.x * 64 + 32 + self.offset[0]),
+                                              int(current.y * 64 + 32 + self.offset[1])), 7)
+                current = current + self.path[vec2int(current)]
+                cost += self.nodes[int(current.x)
+                                   ][int(current.y)].entering_cost
+            else:
+                pg.draw.circle(screen, RED, (int(current.x * 64 + 32 + self.offset[0]),
+                                             int(current.y * 64 + 32 + self.offset[1])), 7)
+                current = current + self.path[vec2int(current)]
 
     def draw_explored_tiles(self, screen):
         # draw the explored tiles

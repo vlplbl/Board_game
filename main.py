@@ -1,11 +1,10 @@
 '''This module controls the main game mechanics and game flow'''
 import pygame as pg
+# from pygame import *
 from tilemap import *
 from settings import *
-from pygame import *
-from os import *
+from os import path
 import random
-chdir('C:\\Users\\Vladimir\\Desktop\\Projects\\Civ_Boardgame')
 
 
 class Game:
@@ -51,9 +50,17 @@ class Game:
             path.join(img_folder, 'MainBase.png')).convert_alpha()
         self.main_base_img = pg.transform.scale(
             self.main_base_img, (TILESIZE, TILESIZE))
+        self.baracks_img = pg.image.load(
+            path.join(img_folder, 'Baracks.png')).convert_alpha()
+        self.baracks_img = pg.transform.scale(
+            self.baracks_img, (TILESIZE, TILESIZE))
         self.unit_img = pg.image.load(
             path.join(img_folder, 'unit_img.png')).convert_alpha()
         self.unit_img = pg.transform.scale(self.unit_img, (TILESIZE, TILESIZE))
+        self.warrior_img = pg.image.load(
+            path.join(img_folder, 'Warrior.png')).convert_alpha()
+        self.warrior_img = pg.transform.scale(
+            self.warrior_img, (TILESIZE, TILESIZE))
         # create a transparent surface
         self.dim_screen = pg.Surface((TILESIZE, TILESIZE)).convert_alpha()
         self.dim_screen.fill((0, 0, 0, 80))
@@ -66,14 +73,15 @@ class Game:
         self.offset = BOARD_CENTER
         self.tilemap = Tilemap(self)
         self.camera = Camera(self)
-        for unit in self.tilemap.players[self.tilemap.current_player]["units"]:
-            self.camera.apply_camera(self, unit.pos)
+        for building in self.tilemap.players[self.tilemap.current_player]["buildings"]:
+            self.camera.apply_camera(self, building.pos)
         # self.last_time = 0
         self.mx0, self.my0, self.mx1, self.my1 = 0, 0, 0, 0
         self.mouse_pos = []
-        self.enable_ui = False
+        self.enable_ui = True
         self.show_path = False
         self.tooltips = True
+        self.camera_counter = 0
 
         # self.offset[0] = self.tilemap.unit.pos[1] * 64 - 8*64-32
         # self.offset[1] = self.tilemap.unit.pos[0] * 64 - 6*64-32
@@ -146,6 +154,8 @@ class Game:
                     self.show_path = not self.show_path
                 if event.key == pg.K_t:
                     self.tooltips = not self.tooltips
+                if event.key == pg.K_SPACE:
+                    self.show_next_unit()
 
             if event.type == pg.MOUSEBUTTONDOWN:
                 if event.button == 1:
@@ -176,13 +186,14 @@ class Game:
 
     def draw_hud(self):
         pg.draw.rect(self.screen, WHITE, (0,
-                                          HEIGHT*5/6, WIDTH*2/5, HEIGHT))
-        pg.draw.rect(self.screen, BLUE, (0,
-                                         HEIGHT*5/6, WIDTH*2/5, HEIGHT), 5)
-        draw_text(self.screen, "Current Player: " + self.tilemap.current_player,
-                  self.hud_font, 25, WHITE, 10, 10, background_color=BLACK)
-        draw_text(self.screen, "Show Path: " + str(self.show_path),
-                  self.hud_font, 25, WHITE, WIDTH / 2, 10, background_color=BLACK)
+                                          0, WIDTH*4/8, 40))
+        self.draw_on_hud()
+        draw_text(self.screen, self.tilemap.current_player,
+                  self.hud_font, 25, BLACK, 10, 10)
+        draw_text(self.screen, "Money: " + str(self.tilemap.players[self.tilemap.current_player]['resources']['money']),
+                  self.hud_font, 25, BLACK, WIDTH*1/8, 10)
+        draw_text(self.screen, "Crystals: " + str(self.tilemap.players[self.tilemap.current_player]['resources']['crystals']),
+                  self.hud_font, 25, BLACK, WIDTH*2/8, 10)
         pg.draw.circle(self.screen, BLACK,
                        (WIDTH*13//14, HEIGHT*12//13), 50, 5)
         pg.draw.circle(self.screen, LIGHTBLUE,
@@ -190,7 +201,23 @@ class Game:
         draw_text(self.screen, "END TURN", self.hud_font, 20,
                   BLACK, WIDTH*13//14-40, HEIGHT*12//13-15)
         draw_button(self.screen, "QUIT", self.hud_font, 20,
-                    BLACK, YELLOW, DARKYELLOW, WIDTH*9//10, HEIGHT//20, 70, 50, quit)
+                    BLACK, YELLOW, DARKYELLOW, WIDTH*9//10, 10, 70, 50, quit)
+
+    def draw_on_hud(self):
+        # draw building menu
+        w = WIDTH*2//5
+        h = HEIGHT*1//6
+        building_menu = pg.Surface((w, h))
+        building_menu.fill(WHITE)
+        for player in self.tilemap.players.keys():
+            for building in self.tilemap.players[player]["buildings"]:
+                if building.selected and building.type == 'main_base':
+                    building_menu.blit(
+                        self.baracks_img, (w//20, h//15, w, h))
+        pg.draw.rect(building_menu, BLUE, (0,
+                                           0, w, h), 5)
+        self.screen.blit(building_menu, (0,
+                                         HEIGHT*5/6, WIDTH*2/5, HEIGHT))
 
     def show_start_menu(self):
         # game splash/start screen
@@ -198,6 +225,13 @@ class Game:
 
     def show_go_screen(self):
         pass
+
+    def show_next_unit(self):
+        # center the camera on the next unit of the current player
+        player_units = self.tilemap.players[self.tilemap.current_player]['units']
+        index = self.camera_counter % len(player_units)
+        self.camera_counter += 1
+        self.camera.apply_camera(self, player_units[index].pos)
 
 
 if __name__ == '__main__':

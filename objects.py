@@ -27,7 +27,7 @@ class Unit:
         self.rect.x = self.pos.x * TILESIZE
         self.rect.y = self.pos.y * TILESIZE
         self.allegiance = player
-        self.total_MP = 2
+        self.total_MP = 20
         self.current_MP = self.total_MP
         self.total_AP = 2
         self.current_AP = self.total_AP
@@ -35,7 +35,7 @@ class Unit:
         self.current_HP = self.total_HP
         self.defense = 50
         self.attack = 10
-        self.range = 2
+        self.range = 1
         self.kill_count = 0
         self.exp = 0
         self.exp_reward = 50
@@ -48,21 +48,39 @@ class Unit:
              'dmg': 60,
              'special_effect': None}
         }
+        self.last_time = 0
 
     def distance_between(self, node1, node2):
-        return abs(node2.x - node1.x) + abs(node2.y - node1.y)
+        # the distance from the unit in a straight line
+        if abs(node2.x - node1.x) >= abs(node2.y - node1.y):
+            return abs(node2.x - node1.x)
+        else:
+            return abs(node2.y - node1.y)
 
-    def update(self, tilemap, destination):
-        if self.is_valid_pos(tilemap, vec2int(destination)):
-            self.last_pos = self.pos
-            self.pos = destination
+    def move(self, tilemap, start, goal_pos):
+        next_pos = start + tilemap.path[vec2int(start)]
+        next_node = tilemap.nodes[int(next_pos.x)][int(next_pos.y)]
+        if self.current_MP >= next_node.entering_cost:
+            self.pos = next_pos
             self.rect = self.pos * TILESIZE
-            self.current_MP -= int(
-                self.distance_between(self.last_pos, destination))
-
-    def move(self, tilemap, start):
-        self.pos = start + tilemap.path[vec2int(start)]
-        self.rect = self.pos * TILESIZE
+            self.current_MP -= next_node.entering_cost
+            while self.pos != goal_pos:
+                now = pg.time.get_ticks()
+                if now - self.last_time >= 200:
+                    self.last_time = now
+                    next_pos = self.pos + tilemap.path[vec2int(self.pos)]
+                    next_node = tilemap.nodes[int(next_pos.x)][int(next_pos.y)]
+                    if self.current_MP >= next_node.entering_cost:
+                        if next_pos == goal_pos and next_node.occupants != None:
+                            print('target reached')
+                            break
+                        self.pos = next_pos
+                        self.rect = self.pos * TILESIZE
+                        self.current_MP -= next_node.entering_cost
+                        tilemap.game.draw()
+                    else:
+                        # to implement: remember the path to use it for the next turn
+                        break
 
     def attacking(self, chosen_attack, target_unit):
         if self.distance_between(self.pos, target_unit.pos) <= self.range:
@@ -74,14 +92,6 @@ class Unit:
         self.selected = False
         self.image = self.image.copy()
         self.image.fill((255, 255, 255, 210), None, pg.BLEND_RGBA_MULT)
-
-    def is_valid_pos(self, tilemap, destination):
-        if tilemap.nodes[destination[0]][destination[1]].type != 'W'\
-                and tilemap.nodes[destination[0]][destination[1]].type != 'M':
-            if self.distance_between(self.pos, vec(destination)) <= self.current_MP:
-                return True
-            else:
-                return False
 
     def draw(self, tilemap, screen):
         screen.blit(
@@ -97,17 +107,52 @@ class MainBase(Unit):
         super().__init__(tilemap, start_tile, player)
         self.image = tilemap.game.main_base_img
         self.selected = False
+        self.type = 'main_base'
 
-    def update(self):
-        pass
+    # def draw_building_menu(self, game):
+    #     if self.selected:
+    #         game.screen.blit(
+    #             game.baracks_img, (WIDTH*1//20, HEIGHT*18//20))
 
 
-class Swordsman(Unit):
+class Baracks(Unit):
     def __init__(self, tilemap, start_tile, player):
         super().__init__(tilemap, start_tile, player)
-        self.type = 'swordsman'
+        self.image = tilemap.game.baracks_img
+        self.selected = False
+
+
+class Scout(Unit):
+    def __init__(self, tilemap, start_tile, player):
+        super().__init__(tilemap, start_tile, player)
+        self.type = 'scout'
         self.image = tilemap.game.unit_img
         self.active_image = self.image
+        self.total_MP = 30
+        self.current_MP = self.total_MP
+
+
+class Warrior(Unit):
+    def __init__(self, tilemap, start_tile, player):
+        super().__init__(tilemap, start_tile, player)
+        self.type = 'warrior'
+        self.image = tilemap.game.unit_img
+        self.image.set_colorkey(WHITE)
+        self.active_image = self.image
+        self.total_MP = 20
+        self.current_MP = self.total_MP
+
+
+class Horseman(Unit):
+    def __init__(self, tilemap, start_tile, player):
+        super().__init__(tilemap, start_tile, player)
+        self.type = 'horseman'
+        self.image = tilemap.game.unit_img
+        self.active_image = self.image
+        self.total_HP = 80
+        self.current_HP = self.total_HP
+        self.total_MP = 60
+        self.current_MP = self.total_MP
 
 
 class Axeman(Unit):
@@ -118,7 +163,7 @@ class Axeman(Unit):
         self.active_image = self.image
         self.total_HP = 150
         self.current_HP = self.total_HP
-        self.total_MP = 3
+        self.total_MP = 30
         self.current_MP = self.total_MP
 
 
