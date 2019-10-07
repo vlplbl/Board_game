@@ -1,8 +1,5 @@
 '''Configuration of the game settings'''
 
-import pygame as pg
-
-
 # Game colors
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
@@ -25,7 +22,7 @@ EXPLORED_TILES_COLOR = (128, 128, 128, 128)
 WIDTH = 1024
 HEIGHT = 768
 TILESIZE = 64
-BOARDWIDTH = 32
+BOARDWIDTH = 32  # must be grater than 10
 BOARDHEIGHT = 24
 BOARD_TOPLEFT = (WIDTH // 2 - TILESIZE // 2, HEIGHT // 2 - TILESIZE // 2)
 BOARD_CENTER = [-abs((BOARDWIDTH * 64 - WIDTH) // 2),

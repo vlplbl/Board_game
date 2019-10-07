@@ -1,10 +1,11 @@
 '''This module controls the main game mechanics and game flow'''
+from os import path
+import sys
 import pygame as pg
 # from pygame import *
-from tilemap import *
+from tilemap import Tilemap
+from objects import Camera, draw_text, draw_button, vec
 from settings import *
-from os import path
-import random
 
 
 class Game:
@@ -147,7 +148,7 @@ class Game:
                         self.playing = False
                     self.running = False
                 if event.key == pg.K_RETURN:
-                    self.tilemap.next_player()
+                    self.tilemap.next_turn()
                 if event.key == pg.K_u:
                     self.enable_ui = not self.enable_ui
                 if event.key == pg.K_h:
@@ -227,11 +228,20 @@ class Game:
         pass
 
     def show_next_unit(self):
-        # center the camera on the next unit of the current player
+        '''center the camera on the next unit of the current player'''
         player_units = self.tilemap.players[self.tilemap.current_player]['units']
-        index = self.camera_counter % len(player_units)
-        self.camera_counter += 1
-        self.camera.apply_camera(self, player_units[index].pos)
+        player_buildings = self.tilemap.players[self.tilemap.current_player]['buildings']
+        if len(player_units) > 0:
+            index = self.camera_counter % len(player_units)
+            self.camera_counter += 1
+            self.camera.apply_camera(self, player_units[index].pos)
+            index = self.camera_counter % len(player_buildings)
+        elif len(player_buildings) > 0:
+            index = self.camera_counter % len(player_buildings)
+            self.camera_counter += 1
+            self.camera.apply_camera(self, player_buildings[index].pos)
+        else:
+            self.camera.apply_camera(self, (WIDTH//2, HEIGHT//2))
 
 
 if __name__ == '__main__':

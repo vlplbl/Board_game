@@ -1,11 +1,12 @@
 ''' Tilemap object and game logic on the tilemap'''
 
 import random
-from collections import deque
+# from collections import deque
 import pygame as pg
-from objects import *
+from itertools import product
+from objects import draw_text, Warrior, Axeman, MainBase, vec2int
 from settings import *
-from search import *
+from search import a_star_search
 vec = pg.math.Vector2
 
 
@@ -88,14 +89,14 @@ class Tilemap:
         self.players = {
             "player1":
             {"units": [Warrior(self, vec(10, 7), 'player1'), Axeman(self, vec(11, 7), 'player1')],   # Horseman(self, vec(12, 7), 'player1')],
-             "buildings": [self.place_main_base('player1', 'NW')],
+             "buildings": [],
              "resources": {
                  "money": 0,
                  "crystals": 0}
              },
             "player2":
             {"units": [Warrior(self, vec(10, 4), 'player2')],  # for i in range(10, 14)],
-             "buildings": [self.place_main_base('player2', 'SE')],
+             "buildings": [],
              "resources": {
                  "money": 0,
                  "crystals": 0}
@@ -105,14 +106,16 @@ class Tilemap:
             'player1': 'team1',
             'player2': 'team2'
         }
-        self.players_list = [key for key in self.players.keys()]
+        self.players_list = [key for key in self.players]
         self.current_player = "player1"
         self.pos = (0, 0)
         # self.players['player1']['buildings'].append(
         #     Baracks(self, vec(10, 8), 'player1'))
         self.generate_terrain()
-        self.nodes = [[Node(self, [j*self.tilesize + self.offset[0], i*self.tilesize + self.offset[1]],
-                            random.choice(self.terrain_list)) for i in range(BOARDHEIGHT)] for j in range(BOARDWIDTH)]
+        self.nodes = [[Node(self, [j*self.tilesize + self.offset[0],
+                                   i*self.tilesize + self.offset[1]],
+                            random.choice(self.terrain_list))
+                       for i in range(BOARDHEIGHT)] for j in range(BOARDWIDTH)]
         # define a list of unpassable tiles
         self.walls = [[j, i] for i in range(BOARDHEIGHT) for j in range(
             BOARDWIDTH) if self.nodes[j][i].type == 'M']
@@ -131,26 +134,58 @@ class Tilemap:
         self.target_tile = vec(0, 0)
         self.target_pos = vec(0, 0)
         self.last_time = 0
+        self.players['player1']['buildings'].append(
+            self.place_main_base('player1', 'NW'))
+        self.players['player2']['buildings'].append(
+            self.place_main_base('player2', 'SE'))
 
     def place_main_base(self, player, quadrant='NW'):
         '''quadrant = NW, SE, SW, NE'''
         quadrants = {
-            'NW': (random.randint(1, BOARDWIDTH//5), random.randint(1, BOARDHEIGHT//5)),
-            'SE': (random.randint(BOARDWIDTH*4//5, BOARDWIDTH-4),
-                   random.randint(BOARDHEIGHT*4//5, BOARDHEIGHT-4)),
-            'SW': (random.randint(1, BOARDWIDTH//5),
-                   random.randint(BOARDHEIGHT*4//5, BOARDHEIGHT-4)),
-            'NE': (random.randint(BOARDWIDTH*4//5, BOARDWIDTH-4), random.randint(1, BOARDHEIGHT//5))}
+            'NW': ((1, BOARDWIDTH//5), (1, BOARDHEIGHT//5)),
+            'SE': ((BOARDWIDTH*4//5, BOARDWIDTH-4),
+                   (BOARDHEIGHT*4//5, BOARDHEIGHT-4)),
+            'SW': ((1, BOARDWIDTH//5),
+                   (BOARDHEIGHT*4//5, BOARDHEIGHT-4)),
+            'NE': ((BOARDWIDTH*4//5, BOARDWIDTH-4), (1, BOARDHEIGHT//5))}
         # base = [MainBase(self, vec(j, i), player) for i in range(quadrants[quadrant][1], quadrants[quadrant][1]+3)
         #         for j in range(quadrants[quadrant][0], quadrants[quadrant][0]+3)]
-        base = MainBase(self, vec(quadrants[quadrant]), player)
+        spawn_spot = (random.randint(quadrants[quadrant][0][0], quadrants[quadrant][0][1]),
+                      random.randint(quadrants[quadrant][1][0], quadrants[quadrant][1][1]))
+        base = MainBase(self, self.adjusted_start_pos(spawn_spot), player)
         return base
 
+    def adjusted_start_pos(self, spawn_spot):
+        ''' change the start position if on non-passable tile'''
+        board = [[j, i] for i in range(BOARDHEIGHT) for j in range(BOARDWIDTH)]
+        count = 0
+        count1 = 0
+        lst = [-1, 0, 1]
+        new_spot = spawn_spot
+        neighbors = self.connections
+        while True:
+            if (self.nodes[new_spot[0]][new_spot[1]].name == 'mountain'
+                    or self.nodes[new_spot[0]][new_spot[1]].name == 'water') and new_spot not in board:
+                new_spot = spawn_spot + neighbors[count]
+                new_spot = vec2int(new_spot)
+                count += 1
+                if count == len(neighbors):
+                    count1 += 1
+                    lst.append(lst[-1]+count1)
+                    lst.append(lst[0]-count1)
+                    neighbors = [vec(p) for p in product(lst, repeat=2)]
+                    count = 0
+                print(spawn_spot, new_spot, neighbors[count])
+            else:
+                spawn_spot = new_spot
+                break
+        return spawn_spot
+
     def generate_terrain(self):
-        # make random weighed terrain nodes by the terrain type frequency from the terrain dict
-        terrain_letters = [i for i in self.terrain_dict.keys()]
-        frequency = [self.terrain_dict[i][j] for i in self.terrain_dict.keys(
-        ) for j in self.terrain_dict[i].keys() if j == 'frequency']
+        ''' make random weighed terrain nodes by the terrain type frequency from the terrain dict'''
+        terrain_letters = [i for i in self.terrain_dict]
+        frequency = [self.terrain_dict[i][j]
+                     for i in self.terrain_dict for j in self.terrain_dict[i] if j == 'frequency']
         self.terrain_list = random.choices(
             terrain_letters, weights=frequency, k=100)
 
@@ -183,8 +218,10 @@ class Tilemap:
     #     self.node_path.append(vec2int(end_vec))
     #     return self.node_path
 
-    def next_player(self):
+    def next_turn(self):
         for unit in self.players[self.current_player]['units']:
+            if unit.destination is not None and unit.pos != unit.destination:
+                unit.move(self, unit.pos, unit.destination)
             unit.selected = False
             unit.turn_inactive()
         if self.current_player == self.players_list[-1]:
@@ -214,7 +251,7 @@ class Tilemap:
             for j, node in enumerate(col):
                 node.update([i*self.tilesize + self.offset[0],
                              j*self.tilesize + self.offset[1]])
-                # # map each unit to it's tile
+                # map each unit to it's tile
                 for player in self.players:
                     for unit in self.players[player]['units']:
                         if node.pos == unit.pos:
@@ -222,18 +259,18 @@ class Tilemap:
                     for building in self.players[player]['buildings']:
                         if node.pos == building.pos:
                             node.occupants = building
-                if node.pos == self.get_mouse_pos():
-                    if game.clicked:
+                if game.clicked and node.pos == self.get_mouse_pos():
                         # deselect all other selections
-                        for unit in self.players[self.current_player]["units"]:
+                    for player in self.players:
+                        for unit in self.players[player]["units"]:
                             unit.selected = False
-                        for building in self.players[self.current_player]['buildings']:
+                        for building in self.players[player]['buildings']:
                             building.selected = False
-                        # select a unit with left click
-                        if node.occupants != None:
-                            node.occupants.selected = True
-                        game.clicked = False
-                        game.right_click = False
+                    # select a unit with left click
+                    if node.occupants is not None:
+                        node.occupants.selected = True
+                    game.clicked = False
+                    game.right_click = False
 
         # move the selected unit on the click position
         for i, col in enumerate(self.nodes):
@@ -246,17 +283,18 @@ class Tilemap:
                         if game.right_click and unit.selected and not unit.moved:
                             if node.pos == unit.pos:
                                 game.right_click = False
-                            elif node.occupants == None:
+                            elif node.occupants is None:
+                                unit.destination = node.pos
                                 unit.move(self, unit.pos, self.get_mouse_pos())
                                 # update the starting node and make the new one starting
                                 from_node.occupants = None
                                 game.right_click = False
                         # attack
-                        if game.right_click and unit.selected and node.occupants != None:
+                        if game.right_click and unit.selected and node.occupants is not None:
                             unit_team = self.teams[node.occupants.allegiance]
                             target_team = self.teams[unit.allegiance]
                             target_player = node.occupants.allegiance
-                            target_class = node.occupants._class
+                            target_class = node.occupants.class_
                             if unit_team != target_team:
                                 if unit.selected and unit.current_AP > 0:
                                     if unit.distance_between(unit.pos, self.get_mouse_pos()) > 1:

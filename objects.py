@@ -1,17 +1,22 @@
 ''' Objects of the tilemap'''
 
 import sys
-from search import *
+
 import pygame as pg
+
+from search import vec2int
 from settings import *
+
 vec = pg.math.Vector2
 
 
 class Camera:
     def __init__(self, game):
         self.game = game
+        self.pos = None
 
     def apply_camera(self, game, object_pos):
+        ''' Apply the camera to an object'''
         self.pos = object_pos
         game.offset[0] = BOARD_TOPLEFT[0] - self.pos.x * 64
         game.offset[1] = BOARD_TOPLEFT[1] - self.pos.y * 64
@@ -20,13 +25,14 @@ class Camera:
 class Unit:
     def __init__(self, tilemap, start_tile, player):
         self.type = 'unit_template'
-        self._class = 'units'
+        self.class_ = 'units'
         self.image = pg.Surface((tilemap.tilesize, tilemap.tilesize))
         self.rect = self.image.get_rect()
         self.pos = vec(start_tile)
         self.rect.x = self.pos.x * TILESIZE
         self.rect.y = self.pos.y * TILESIZE
         self.allegiance = player
+        self.destination = None
         self.total_MP = 20
         self.current_MP = self.total_MP
         self.total_AP = 2
@@ -71,16 +77,13 @@ class Unit:
                     next_pos = self.pos + tilemap.path[vec2int(self.pos)]
                     next_node = tilemap.nodes[int(next_pos.x)][int(next_pos.y)]
                     if self.current_MP >= next_node.entering_cost:
-                        if next_pos == goal_pos and next_node.occupants != None:
+                        if next_pos == goal_pos and next_node.occupants is not None:
                             print('target reached')
                             break
                         self.pos = next_pos
                         self.rect = self.pos * TILESIZE
                         self.current_MP -= next_node.entering_cost
                         tilemap.game.draw()
-                    else:
-                        # to implement: remember the path to use it for the next turn
-                        break
 
     def attacking(self, chosen_attack, target_unit):
         if self.distance_between(self.pos, target_unit.pos) <= self.range:
