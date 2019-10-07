@@ -187,7 +187,7 @@ class Game:
     def draw_hud(self):
         pg.draw.rect(self.screen, WHITE, (0,
                                           0, WIDTH*4/8, 40))
-        self.draw_on_hud()
+        self.draw_building_menu()
         draw_text(self.screen, self.tilemap.current_player,
                   self.hud_font, 25, BLACK, 10, 10)
         draw_text(self.screen, "Money: " + str(self.tilemap.players[self.tilemap.current_player]['resources']['money']),
@@ -203,7 +203,7 @@ class Game:
         draw_button(self.screen, "QUIT", self.hud_font, 20,
                     BLACK, YELLOW, DARKYELLOW, WIDTH*9//10, 10, 70, 50, quit)
 
-    def draw_on_hud(self):
+    def draw_building_menu(self):
         # draw building menu
         w = WIDTH*2//5
         h = HEIGHT*1//6
